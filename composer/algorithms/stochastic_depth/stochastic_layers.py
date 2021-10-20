@@ -153,7 +153,7 @@ class StochasticGPT2Block(GPT2Block):
 
         residual = hidden_states
         sample = torch.bernoulli(1 - self.drop_rate)
-        if not self.training and sample:
+        if not self.training or sample:
             hidden_states = self.ln_1(hidden_states)
             attn_outputs = self.attn(
                 hidden_states,
