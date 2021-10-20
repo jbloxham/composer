@@ -1,6 +1,7 @@
 # Copyright 2021 MosaicML. All Rights Reserved.
 
 import torch
+from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
 from composer.models.resnets import Bottleneck
 
@@ -130,3 +131,97 @@ class StochasticBottleneck(Bottleneck):
                                     downsample=module.downsample,
                                     groups=module.conv2.groups,
                                     dilation=module.conv2.dilation)
+
+
+class StochasticGPT2Block(GPT2Block):
+
+    def __init__(self, drop_rate: float, config):
+        self.drop_rate = torch.tensor(drop_rate)
+        super().__init__(config)
+
+    def forward(
+        self,
+        hidden_states,
+        layer_past=None,
+        attention_mask=None,
+        head_mask=None,
+        encoder_hidden_states=None,
+        encoder_attention_mask=None,
+        use_cache=False,
+        output_attentions=False,
+    ):
+
+        residual = hidden_states
+        sample = torch.bernoulli(self.drop_rate)
+        if not self.training and sample:
+            hidden_states = self.ln_1(hidden_states)
+            attn_outputs = self.attn(
+                hidden_states,
+                layer_past=layer_past,
+                attention_mask=attention_mask,
+                head_mask=head_mask,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+            )
+            attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
+            if not self.training:
+                attn_output *= (1 - self.drop_rate)
+            outputs = attn_outputs[1:]
+            # residual connection
+            hidden_states = attn_output + residual
+
+            if encoder_hidden_states is not None:
+                # add one self-attention block for cross-attention
+                if not hasattr(self, "crossattention"):
+                    raise ValueError(f"If `encoder_hidden_states` are passed, {self} has to be instantiated with "
+                                     "cross-attention layers by setting `config.add_cross_attention=True`")
+                residual = hidden_states
+                hidden_states = self.ln_cross_attn(hidden_states)
+                cross_attn_outputs = self.crossattention(
+                    hidden_states,
+                    attention_mask=attention_mask,
+                    head_mask=head_mask,
+                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_attention_mask=encoder_attention_mask,
+                    output_attentions=output_attentions,
+                )
+                attn_output = cross_attn_outputs[0]
+                if not self.training:
+                    attn_output *= (1 - self.drop_rate)
+                # residual connection
+                hidden_states = residual + attn_output
+                outputs = outputs + cross_attn_outputs[2:]  # add cross attentions if we output attention weights
+
+            residual = hidden_states
+            hidden_states = self.ln_2(hidden_states)
+            feed_forward_hidden_states = self.mlp(hidden_states)
+            if not self.training:
+                feed_forward_hidden_states *= (1 - self.drop_rate)
+            # residual connection
+            hidden_states = residual + feed_forward_hidden_states
+
+        else:
+            if use_cache:
+                outputs = (None, None, None)
+            else:
+                outputs = (None,)
+
+        if use_cache:
+            outputs = (hidden_states,) + outputs
+        else:
+            outputs = (hidden_states,) + outputs[1:]
+
+        return outputs  # hidden_states, present, (attentions, cross_attentions)
+
+    @staticmethod
+    def from_target_layer(module: GPT2Block,
+                          config,
+                          module_index: int,
+                          module_count: int,
+                          drop_rate: float,
+                          drop_distribution: str,
+                          rand_generator: torch.Generator,
+                          use_same_gpu_seed: bool = True):
+        if drop_distribution == 'linear':
+            drop_rate = ((module_index + 1) / module_count) * drop_rate
+        return StochasticGPT2Block(drop_rate=drop_rate, config=config)

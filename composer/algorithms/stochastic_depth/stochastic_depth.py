@@ -9,10 +9,11 @@ from typing import Optional, Type
 
 import torch
 import yahp as hp
+from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
 from composer.algorithms import AlgorithmHparams
 from composer.algorithms.stochastic_depth.sample_stochastic_layers import SampleStochasticBottleneck
-from composer.algorithms.stochastic_depth.stochastic_layers import StochasticBottleneck
+from composer.algorithms.stochastic_depth.stochastic_layers import StochasticBottleneck, StochasticGPT2Block
 from composer.core import Algorithm, Event, Logger, State, surgery
 from composer.models.resnets import Bottleneck
 
@@ -22,7 +23,8 @@ _VALID_LAYER_DISTRIBUTIONS = ("uniform", "linear")
 
 STOCHASTIC_LAYER_MAPPING = {
     'block': {
-        'ResNetBottleneck': (Bottleneck, StochasticBottleneck)
+        'ResNetBottleneck': (Bottleneck, StochasticBottleneck),
+        'GPT2Block': (GPT2Block, StochasticGPT2Block),
     },
     'sample': {
         'ResNetBottleneck': (Bottleneck, SampleStochasticBottleneck)
@@ -135,6 +137,8 @@ def apply_stochastic_depth(model: torch.nn.Module,
     shared_kwargs = {'drop_rate': drop_rate, 'drop_distribution': drop_distribution, 'module_count': module_count}
     if stochastic_method == 'block':
         rand_generator = torch.Generator()  # Random number generator for each layer
+        if target_layer_name == 'GPT2Block':
+            shared_kwargs["config"] = model.config
         stochastic_from_target_layer = functools.partial(stochastic_layer.from_target_layer,
                                                          **shared_kwargs,
                                                          use_same_gpu_seed=use_same_gpu_seed,
