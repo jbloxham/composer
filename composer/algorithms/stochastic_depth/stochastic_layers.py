@@ -135,8 +135,10 @@ class StochasticBottleneck(Bottleneck):
 
 class StochasticGPT2Block(GPT2Block):
 
-    def __init__(self, drop_rate: float, config):
+    def __init__(self, drop_rate: float, module_id: int, module_count: int, config):
         self.drop_rate = torch.tensor(drop_rate)
+        self.module_id = module_id
+        self.module_count = module_count
         super().__init__(config)
 
     def forward(
@@ -224,4 +226,7 @@ class StochasticGPT2Block(GPT2Block):
                           use_same_gpu_seed: bool = True):
         if drop_distribution == 'linear':
             drop_rate = ((module_index + 1) / module_count) * drop_rate
-        return StochasticGPT2Block(drop_rate=drop_rate, config=config)
+        return StochasticGPT2Block(drop_rate=drop_rate,
+                                   module_id=module_index,
+                                   module_count=module_count,
+                                   config=config)

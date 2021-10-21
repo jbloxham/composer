@@ -271,10 +271,7 @@ class StochasticDepth(Algorithm):
             logger.metric_epoch({'stochastic_depth/num_stochastic_layers': num_stochastic_layers})
 
         elif event == Event.BATCH_START:
-            drop_warmup_iters = state.steps_per_epoch * state.max_epochs * self.hparams.drop_warmup
-            if state.step < drop_warmup_iters:
-                current_drop_rate = (state.step / drop_warmup_iters) * self.hparams.drop_rate
-                _update_drop_rate(state.model, stochastic_layer, current_drop_rate, self.hparams.drop_distribution)
-            else:
-                current_drop_rate = self.hparams.drop_rate
+            current_drop_rate = (1 - torch.exp(
+                torch.tensor(-100 / (state.steps_per_epoch * state.max_epochs)) * state.step)) * self.hparams.drop_rate
+            _update_drop_rate(state.model, stochastic_layer, current_drop_rate, self.hparams.drop_distribution)
             logger.metric_batch({'stochastic_depth/drop_rate': current_drop_rate})
