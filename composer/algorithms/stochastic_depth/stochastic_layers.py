@@ -225,7 +225,7 @@ class StochasticGPT2Block(GPT2Block):
                           rand_generator: torch.Generator,
                           use_same_gpu_seed: bool = True):
         if drop_distribution == 'linear':
-            drop_rate = ((module_index + 1) / module_count) * drop_rate
+            drop_rate = (module_index / (module_count - 1)) * drop_rate
         return StochasticGPT2Block(drop_rate=drop_rate,
                                    module_id=module_index,
                                    module_count=module_count,
