@@ -164,7 +164,7 @@ def _update_drop_rate(module: torch.nn.Module, stochastic_block: Type[torch.nn.M
                 if drop_distribution == 'uniform':
                     current_drop_rate = drop_rate
                 elif drop_distribution == 'linear':
-                    current_drop_rate = ((child.module_id + 1) / child.module_count) * drop_rate  # type: ignore
+                    current_drop_rate = ((child.module_id) / child.module_count) * drop_rate  # type: ignore
                 else:
                     raise ValueError(f"drop_distribution '{drop_distribution}' is"
                                      f" not supported. Must be one of {list(_VALID_LAYER_DISTRIBUTIONS)}")
