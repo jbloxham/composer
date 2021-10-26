@@ -162,6 +162,7 @@ class Trainer:
             checkpoint_interval_unit: Optional[str] = None,
             checkpoint_folder: Optional[str] = "checkpoints",
             checkpoint_interval: Optional[int] = 1,
+            ddp_sync_strategy: Optional[str] = 'single_auto_sync',
 
             # Optional config (ex. an hparams yaml file)
             config: Optional[Dict[str, Any]] = None):
@@ -170,6 +171,8 @@ class Trainer:
         warnings.filterwarnings(action="ignore", message="torch.cuda.amp.GradScaler")
 
         self.config = config
+
+        self.ddp_sync_strategy = 'single_auto_sync'
 
         if not device:
             device = DeviceCPU(num_cpus=1)
@@ -352,6 +355,7 @@ class Trainer:
             checkpoint_interval_unit=hparams.checkpoint_interval_unit,
             checkpoint_folder=hparams.checkpoint_folder,
             checkpoint_interval=hparams.checkpoint_interval,
+            ddp_sync_strategy=hparams.ddp_sync_strategy,
 
             # Optional config
             config=hparams.to_dict())
@@ -662,7 +666,6 @@ class Trainer:
             microbatches (Sequence[Batch]): The microbatches which make up the batch.
         """
         self.engine.run_event(Event.BEFORE_TRAIN_BATCH)
-        find_unused_parameters = any(map(lambda x: x.find_unused_parameters, self.engine.algorithms))
 
         state = self.state
         original_model = state.model.module
@@ -684,8 +687,11 @@ class Trainer:
             # gradients aren't needed until after this function has finished.
             # When any algorithm sets find_unused_parameters to true, DDP must sync every microbatch.
 
-            if microbatch_idx + 1 == len(microbatches) or not isinstance(
-                    state.model, DistributedDataParallel) or find_unused_parameters:
+            if not isinstance(state.model, DistributedDataParallel):
+                context = contextlib.nullcontext
+            elif self.ddp_sync_strategy() == 'single_auto_sync' and microbatch_idx + 1 == len(microbatches):
+                context = contextlib.nullcontext
+            elif self.ddp_sync_strategy() == 'multi_auto_sync':
                 context = contextlib.nullcontext
             else:
                 context = state.model.no_sync
@@ -727,6 +733,12 @@ class Trainer:
                     loss.backward()
 
                 self.engine.run_event(Event.AFTER_BACKWARD)
+
+        if self.ddp_sync_strategy() == 'manual_sync':
+            for optimizer in ensure_tuple(state.optimizers):
+                for p in optimizer.param_groups:
+                    if p.grad is not None:
+                        self.ddp.all_reduce(p.grad)
 
         # Unscale gradients before `Event.AFTER_TRAIN_BATCH`
         if use_grad_scaling:
