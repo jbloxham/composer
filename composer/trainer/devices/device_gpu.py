@@ -10,7 +10,8 @@ import torch.cuda.amp
 import torch.utils.data
 
 from composer.core.state import State
-from composer.core.types import Batch, BatchPair, DataLoader, Precision, StateDict, Tensor, Tensors, TPrefetchFn
+from composer.core.types import (Batch, DataLoader, Precision, StateDict, Tensor, Tensors, TPrefetchFn, as_batch_dict,
+                                 as_batch_pair)
 from composer.datasets.dataloader import WrappedDataLoader
 from composer.trainer.devices.device import Device, T_nnModule
 from composer.utils import map_collection
@@ -86,10 +87,16 @@ class CudaDataLoader(WrappedDataLoader):
         """
         if isinstance(batch, Tensor):
             return cast(Tensor, self._to_device(batch))
-        if isinstance(batch, tuple):  # BatchPair
-            return cast(BatchPair, tuple(self._to_device(x) for x in batch))
-        if isinstance(batch, dict):  # BatchDict
-            return {k: cast(Tensor, self._to_device(v)) for k, v in batch.items()}
+        try:
+            batch_pair = as_batch_pair(batch)
+            return tuple(self._to_device(x) for x in batch_pair)
+        except TypeError:
+            pass
+        try:
+            batch_dict = as_batch_dict(batch)
+            return {k: self._to_device(v) for k, v in batch_dict.items()}
+        except TypeError:
+            pass
         raise TypeError(f"Unsupported type for batch: {type(batch)}")
 
 
