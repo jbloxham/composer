@@ -9,10 +9,11 @@ from typing import Optional, Type
 
 import torch
 import yahp as hp
+from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
 from composer.algorithms import AlgorithmHparams
 from composer.algorithms.stochastic_depth.sample_stochastic_layers import SampleStochasticBottleneck
-from composer.algorithms.stochastic_depth.stochastic_layers import StochasticBottleneck
+from composer.algorithms.stochastic_depth.stochastic_layers import StochasticBottleneck, StochasticGPT2Block
 from composer.core import Algorithm, Event, Logger, State, surgery
 from composer.models.resnets import Bottleneck
 
@@ -22,7 +23,8 @@ _VALID_LAYER_DISTRIBUTIONS = ("uniform", "linear")
 
 STOCHASTIC_LAYER_MAPPING = {
     'block': {
-        'ResNetBottleneck': (Bottleneck, StochasticBottleneck)
+        'ResNetBottleneck': (Bottleneck, StochasticBottleneck),
+        'GPT2Block': (GPT2Block, StochasticGPT2Block),
     },
     'sample': {
         'ResNetBottleneck': (Bottleneck, SampleStochasticBottleneck)
@@ -135,6 +137,8 @@ def apply_stochastic_depth(model: torch.nn.Module,
     shared_kwargs = {'drop_rate': drop_rate, 'drop_distribution': drop_distribution, 'module_count': module_count}
     if stochastic_method == 'block':
         rand_generator = torch.Generator()  # Random number generator for each layer
+        if target_layer_name == 'GPT2Block':
+            shared_kwargs["config"] = model.config
         stochastic_from_target_layer = functools.partial(stochastic_layer.from_target_layer,
                                                          **shared_kwargs,
                                                          use_same_gpu_seed=use_same_gpu_seed,
@@ -160,7 +164,7 @@ def _update_drop_rate(module: torch.nn.Module, stochastic_block: Type[torch.nn.M
                 if drop_distribution == 'uniform':
                     current_drop_rate = drop_rate
                 elif drop_distribution == 'linear':
-                    current_drop_rate = ((child.module_id + 1) / child.module_count) * drop_rate  # type: ignore
+                    current_drop_rate = (child.module_id / (child.module_count - 1)) * drop_rate  # type: ignore
                 else:
                     raise ValueError(f"drop_distribution '{drop_distribution}' is"
                                      f" not supported. Must be one of {list(_VALID_LAYER_DISTRIBUTIONS)}")
@@ -267,10 +271,7 @@ class StochasticDepth(Algorithm):
             logger.metric_epoch({'stochastic_depth/num_stochastic_layers': num_stochastic_layers})
 
         elif event == Event.BATCH_START:
-            drop_warmup_iters = state.steps_per_epoch * state.max_epochs * self.hparams.drop_warmup
-            if state.step < drop_warmup_iters:
-                current_drop_rate = (state.step / drop_warmup_iters) * self.hparams.drop_rate
-                _update_drop_rate(state.model, stochastic_layer, current_drop_rate, self.hparams.drop_distribution)
-            else:
-                current_drop_rate = self.hparams.drop_rate
+            current_drop_rate = (1 - torch.exp(
+                torch.tensor(-100 / (state.steps_per_epoch * state.max_epochs)) * state.step)) * self.hparams.drop_rate
+            _update_drop_rate(state.model, stochastic_layer, current_drop_rate, self.hparams.drop_distribution)
             logger.metric_batch({'stochastic_depth/drop_rate': current_drop_rate})
