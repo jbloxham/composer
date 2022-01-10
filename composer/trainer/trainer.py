@@ -496,24 +496,6 @@ class Trainer:
             for _ in self.state.train_dataloader:
                 break
 
-    def _get_batch_size(self, batch: Batch) -> int:
-        if isinstance(batch, Tensor):
-            return batch.shape[0]
-
-        dim0_sizes = []
-        if isinstance(batch, (list, tuple)):
-            for tensors in batch:
-                for t in ensure_tuple(tensors):
-                    dim0_sizes.append(t.shape[0])
-        elif isinstance(batch, dict):
-            dim0_sizes = [t.shape[0] for t in batch.values()]
-
-        if len(set(dim0_sizes)) == 1:
-            return dim0_sizes[0]
-        else:
-            raise ValueError('The default _get_batch_size function found ',
-                             f'multiple Tensor sizes in batch: {dim0_sizes}')
-
     def _train_loop(self) -> None:
         """Run training for the specified number of epochs and log results."""
         # shorthand
