@@ -328,6 +328,8 @@ class Trainer:
             A Trainer object initialized with the provided TrainerHparams.
         """
 
+        hparams.deepspeed = DeepSpeedHparams(zero_stage=1)
+
         hparams.validate()
         import composer
         logging.getLogger(composer.__name__).setLevel(hparams.log_level)
@@ -418,8 +420,7 @@ class Trainer:
 
     @property
     def deepspeed_enabled(self):
-        # return self.deepspeed_hparams is not None
-        return True
+        return self.deepspeed_hparams is not None
 
     def fit(self):
         """Train and evaluate the model on the provided data."""
