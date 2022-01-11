@@ -328,8 +328,6 @@ class Trainer:
             A Trainer object initialized with the provided TrainerHparams.
         """
 
-        hparams.deepspeed = DeepSpeedHparams(zero_stage=1)
-
         hparams.validate()
         import composer
         logging.getLogger(composer.__name__).setLevel(hparams.log_level)
