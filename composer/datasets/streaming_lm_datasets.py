@@ -165,7 +165,7 @@ class StreamingLMDatasetHparams(DatasetHparams):
             result["labels"] = result["input_ids"].copy()
             return result
         else:
-            raise ValueError(f"Unknown group_method: '{group_method}'")
+            raise ValueError(f"Unknown group_method: '{self.group_method}'")
 
     def initialize_object(self, batch_size: int, dataloader_hparams: DataloaderHparams) -> DataSpec:
         assert dataloader_hparams.num_workers == 1, "LM Streaming Dataloader only supports num_workers=1"
@@ -234,7 +234,7 @@ class StreamingLMDatasetHparams(DatasetHparams):
             drop_last=self.drop_last,
             collate_fn=collate_fn,
         ),
-                              split_fn=_split_dict_fn)
+                              split_batch=_split_dict_fn)
 
 
 class SizedIterableDataset(torch.utils.data.IterableDataset):
