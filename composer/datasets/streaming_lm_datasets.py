@@ -14,9 +14,10 @@ import torch
 import yahp as hp
 from transformers.testing_utils import CaptureLogger
 
+from composer.core.data_spec import DataSpec
 from composer.core.types import Batch
 from composer.datasets.dataloader import DataloaderHparams
-from composer.datasets.hparams import DataloaderSpec, DatasetHparams
+from composer.datasets.hparams import DatasetHparams
 from composer.utils import dist
 from composer.utils.data import get_subset_dataset
 
@@ -225,8 +226,8 @@ class StreamingLMDatasetHparams(DatasetHparams):
             collate_fn = transformers.DataCollatorForLanguageModeling(tokenizer=self.tokenizer,
                                                                   mlm=self.use_masked_lm,
                                                                   mlm_probability=self.mlm_probability)
-        # Return DataloaderSpec
-        return DataloaderSpec(dataloader=dataloader_hparams.initialize_object(
+        # Return DataSpec
+        return DataSpec(dataloader=dataloader_hparams.initialize_object(
             dataset=sized_iterable_dataset,
             batch_size=batch_size,
             sampler=None,
