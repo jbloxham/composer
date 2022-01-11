@@ -418,7 +418,8 @@ class Trainer:
 
     @property
     def deepspeed_enabled(self):
-        return self.deepspeed_hparams is not None
+        # return self.deepspeed_hparams is not None
+        return True
 
     def fit(self):
         """Train and evaluate the model on the provided data."""
