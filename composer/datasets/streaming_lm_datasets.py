@@ -167,7 +167,7 @@ class StreamingLMDatasetHparams(DatasetHparams):
         else:
             raise ValueError(f"Unknown group_method: '{group_method}'")
 
-    def initialize_object(self, batch_size: int, dataloader_hparams: DataloaderHparams) -> DataloaderSpec:
+    def initialize_object(self, batch_size: int, dataloader_hparams: DataloaderHparams) -> DataSpec:
         assert dataloader_hparams.num_workers == 1, "LM Streaming Dataloader only supports num_workers=1"
 
         try:
