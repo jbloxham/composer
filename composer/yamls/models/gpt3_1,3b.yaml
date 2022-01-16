@@ -78,8 +78,12 @@ schedulers:
       warmup_iters: 0.01dur
       warmup_factor: 0
       interval: batch
-  - constant:
+  - cosine_decay:
       interval: batch
+      eta_min: 0
+      verbose: false
+      T_max: 0.99dur
+
 loggers:
   - file:
       log_level: batch
