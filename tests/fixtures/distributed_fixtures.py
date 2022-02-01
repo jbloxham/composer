@@ -48,9 +48,6 @@ def configure_dist(request: pytest.FixtureRequest):
     if not torch.distributed.is_initialized():
         if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
             torch.distributed.init_process_group(backend, timeout=DIST_TIMEOUT)
-        else:
-            store = torch.distributed.HashStore()
-            torch.distributed.init_process_group(backend, timeout=DIST_TIMEOUT, store=store, world_size=1, rank=0)
 
 
 @pytest.fixture(autouse=True)
